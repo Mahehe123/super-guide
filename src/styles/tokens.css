@@ -1,0 +1,47 @@
+/* Hiyo design tokens — hi-iro red, light only */
+:root {
+  /* Brand */
+  --hi: #b3302b;
+  --hi-strong: #8f221e;
+  --on-hi: #ffffff;
+  --hi-c: #ffdad4;
+  --on-hi-c: #5a0e0a;
+
+  /* Neutrals (warm, red-biased) */
+  --surface: #fff8f6;
+  --card: #ffffff;
+  --tonal: #f7eae7;
+  --tonal-strong: #efdcd8;
+  --outline: #efe0dc;
+  --outline-s: #dbc6c1;
+  --text: #241a19;
+  --muted: #6d5a57;
+  --inverse: #3a2e2d;
+  --on-inverse: #fbeeec;
+
+  /* Semantic — kept away from brand red */
+  --pos: #1e7b4f;
+  --pos-c: #d6efe0;
+  --over: #8a5a00;
+  --over-c: #f9e9c6;
+  --wait: #35566e;
+  --wait-c: #dfeaf2;
+  --danger: #ba1a1a;
+
+  /* Type */
+  --font-disp: 'Bricolage Grotesque Variable', 'Figtree', system-ui, sans-serif;
+  --font-ui: 'Figtree', Roboto, system-ui, sans-serif;
+
+  /* Shape & space */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-xl: 24px;
+  --gutter: 16px;
+  --nav-h: 76px;
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --shadow-fab: 0 6px 16px rgba(143, 34, 30, 0.3);
+  --shadow-pop: 0 10px 28px rgba(58, 30, 28, 0.22);
+
+  color-scheme: light;
+}

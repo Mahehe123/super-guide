@@ -1,0 +1,12 @@
+node_modules/
+dist/
+dev-dist/
+*.local
+.DS_Store
+.claude/
+
+# Personal finance data - never publish
+kira-backup.json
+*backup*.json
+*.local.test.ts
+*.local.json
