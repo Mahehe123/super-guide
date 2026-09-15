@@ -87,6 +87,8 @@ export interface Recurring {
   /** auto = create silently, confirm = ask on Home */
   mode: 'auto' | 'confirm';
   active: boolean;
+  /** Work bill that gets claimed back each month */
+  claimable?: boolean;
   /** Months deliberately not logged */
   skipped?: MonthStr[];
   createdAt: number;

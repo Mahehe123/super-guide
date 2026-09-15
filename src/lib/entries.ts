@@ -1,5 +1,5 @@
 import { db, uid } from '../db/db';
-import type { DateStr, Entry, Receipt } from '../db/types';
+import type { DateStr, Entry, Receipt, Recurring } from '../db/types';
 import { isClaimsCategory } from './stats';
 
 export type EntryDraft = Omit<Entry, 'id' | 'createdAt' | 'updatedAt' | 'base' | 'receiptIds'> & {
@@ -31,18 +31,30 @@ export async function saveEntry(draft: EntryDraft, newReceipts: Blob[] = [], rem
 }
 
 /** Deletes entries and their receipts. Returns an undo function. */
+/**
+ * Deletes entries and their receipts. Returns an undo function.
+ * An entry made by a recurring bill marks that month as skipped, so the bill
+ * isn't logged again the next time Hiyo opens.
+ */
 export async function deleteEntries(ids: string[]): Promise<() => Promise<void>> {
-  const { entries, receipts } = await db.transaction('rw', db.entries, db.receipts, async () => {
+  const { entries, receipts, templatesBefore } = await db.transaction('rw', db.entries, db.receipts, db.recurring, async () => {
     const entries = (await db.entries.bulkGet(ids)).filter((e): e is Entry => !!e);
     const receipts = await db.receipts.where('entryId').anyOf(ids).toArray();
+    const recIds = [...new Set(entries.map((e) => e.recurringId).filter((x): x is string => !!x))];
+    const templatesBefore = (await db.recurring.bulkGet(recIds)).filter((t): t is Recurring => !!t);
+    for (const t of templatesBefore) {
+      const months = entries.filter((e) => e.recurringId === t.id).map((e) => e.date.slice(0, 7));
+      await db.recurring.update(t.id, { skipped: [...new Set([...(t.skipped ?? []), ...months])] });
+    }
     await db.receipts.bulkDelete(receipts.map((r) => r.id));
     await db.entries.bulkDelete(ids);
-    return { entries, receipts };
+    return { entries, receipts, templatesBefore };
   });
   return async () => {
-    await db.transaction('rw', db.entries, db.receipts, async () => {
+    await db.transaction('rw', db.entries, db.receipts, db.recurring, async () => {
       await db.entries.bulkPut(entries);
       await db.receipts.bulkPut(receipts);
+      await db.recurring.bulkPut(templatesBefore);
     });
   };
 }

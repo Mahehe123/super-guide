@@ -35,7 +35,39 @@ export function initNav() {
     const tab = st?.tab ?? tabFromHash();
     const depth = st?.depth ?? 0;
     nav.set({ tab, overlays: cur.overlays.slice(0, depth) });
+    backDone();
   });
+}
+
+/*
+ * Back navigations are serialised: a second history.back() fired before the first
+ * popstate arrives can be dropped or merged by the browser (seen on slower phones),
+ * which left a sheet open after "Delete". Each back waits for the previous one.
+ */
+let inFlight = false;
+let queued = 0;
+let waiters: Array<() => void> = [];
+let safety: ReturnType<typeof setTimeout> | undefined;
+
+function doBack() {
+  inFlight = true;
+  clearTimeout(safety);
+  // If the browser never answers (nothing to go back to), don't hang.
+  safety = setTimeout(backDone, 1000);
+  history.back();
+}
+
+function backDone() {
+  clearTimeout(safety);
+  inFlight = false;
+  if (queued > 0) {
+    queued--;
+    doBack();
+    return;
+  }
+  const w = waiters;
+  waiters = [];
+  w.forEach((f) => f());
 }
 
 export function goTab(tab: Tab) {
@@ -46,7 +78,7 @@ export function goTab(tab: Tab) {
   }
   const st = history.state as HistState;
   if (tab === 'home' && cur.tab !== 'home' && st && st.depth === 0) {
-    history.back();
+    if (!inFlight) doBack();
     return;
   }
   const next: HistState = { tab, depth: 0 };
@@ -63,7 +95,12 @@ export function openOverlay(kind: string, props?: Record<string, unknown>) {
   nav.set({ ...cur, overlays });
 }
 
-/** Close the top overlay (same as pressing back). */
-export function closeOverlay() {
-  if (nav.get().overlays.length > 0) history.back();
+/** Close the top overlay (same as pressing back). Resolves once it has closed. */
+export function closeOverlay(): Promise<void> {
+  const stillOpen = nav.get().overlays.length - (inFlight ? 1 : 0) - queued;
+  if (stillOpen <= 0) return Promise.resolve();
+  const done = new Promise<void>((resolve) => waiters.push(resolve));
+  if (inFlight) queued++;
+  else doBack();
+  return done;
 }

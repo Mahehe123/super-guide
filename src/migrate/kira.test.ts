@@ -57,7 +57,7 @@ describe('Kira import', () => {
 
   it('turns recurring series into templates', () => {
     expect(m.recurring).toHaveLength(1);
-    expect(m.recurring[0].template).toMatchObject({ amount: 30, startMonth: '2027-01', endMonth: '2027-03', mode: 'auto' });
+    expect(m.recurring[0].template).toMatchObject({ amount: 30, startMonth: '2027-01', endMonth: '2027-03', mode: 'auto', claimable: false });
     expect(m.recurring[0].entryIds).toEqual(['f', 'g']);
   });
 

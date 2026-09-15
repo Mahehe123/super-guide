@@ -12,7 +12,7 @@ import { App } from './app';
 import { ErrorBoundary } from './ui/ErrorBoundary';
 import { closeOverlay, initNav, nav, openOverlay } from './lib/nav';
 import { ensureSeed, getSettings, requestPersistence } from './db/db';
-import { runAutoRecurring } from './lib/recurring';
+import { backfillClaimable, runAutoRecurring } from './lib/recurring';
 import { pruneReceipts } from './lib/backup';
 import { refreshRatesIfStale } from './lib/rates';
 import { today } from './lib/dates';
@@ -60,18 +60,37 @@ async function boot() {
   const wantsAdd = params.has('add');
   if (wantsAdd) history.replaceState(null, '', location.pathname + location.hash);
 
-  initNav();
-  await ensureSeed();
-  render(
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>,
-    document.getElementById('app')!,
-  );
+  // Register updates first, so a fixed version can still arrive even if startup below fails.
+  if (import.meta.env.PROD) setupUpdates();
+
+  const root = document.getElementById('app')!;
+  let rendered = false;
+  const onFatal = (err: unknown) => {
+    if (!rendered) render(<BootError error={err} />, root);
+  };
+  window.addEventListener('error', (e) => onFatal(e.error ?? e.message));
+  window.addEventListener('unhandledrejection', (e) => onFatal(e.reason));
+
+  try {
+    initNav();
+    await withTimeout(ensureSeed(), 10_000, 'The database didn’t respond within 10 seconds.');
+    render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>,
+      root,
+    );
+    rendered = true;
+  } catch (err) {
+    onFatal(err);
+    return;
+  }
   if (wantsAdd) openOverlay('entry');
 
   requestPersistence().catch(() => {});
-  catchUpRecurring();
+  backfillClaimable()
+    .catch(() => 0)
+    .then(() => catchUpRecurring());
   refreshRatesIfStale();
   getSettings()
     .then((s) => s.receiptRetentionMonths && pruneReceipts(s.receiptRetentionMonths, today()))
@@ -81,7 +100,38 @@ async function boot() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && nav.get().overlays.length) closeOverlay();
   });
-  if (import.meta.env.PROD) setupUpdates();
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms))]);
+}
+
+/** Shown instead of a blank page when Hiyo can't start. Data stays in IndexedDB untouched. */
+function BootError({ error }: { error: unknown }) {
+  const text = error instanceof Error ? `${error.name}: ${error.message}\n${error.stack ?? ''}` : String(error);
+  return (
+    <main class="screen crash" role="alert">
+      <h1>Hiyo couldn’t start</h1>
+      <p>Your entries are still saved on this phone. Try these in order:</p>
+      <button class="btn primary block" onClick={() => location.replace(location.pathname)}>
+        Reload
+      </button>
+      <button
+        class="btn block"
+        onClick={async () => {
+          // Drop a stuck offline copy of the app (never touches your data), then reload fresh.
+          const regs = (await navigator.serviceWorker?.getRegistrations?.()) ?? [];
+          await Promise.all(regs.map((r) => r.unregister()));
+          for (const k of (await caches?.keys?.()) ?? []) await caches.delete(k);
+          location.replace(location.pathname);
+        }}
+      >
+        Reload latest version
+      </button>
+      <p class="small muted">If it still fails, send a screenshot of the text below.</p>
+      <pre>{text.slice(0, 1200)}</pre>
+    </main>
+  );
 }
 
 boot();

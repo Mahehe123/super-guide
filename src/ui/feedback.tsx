@@ -67,11 +67,14 @@ export function ConfirmDialog(props: ConfirmOpts & { id: number }) {
   const checkedRef = useRef(checked);
   checkedRef.current = checked;
 
-  const answer = (ok: boolean) => {
+  const answer = async (ok: boolean) => {
     const r = resolvers.get(props.id);
+    if (!r) return; // already answered (double tap)
     resolvers.delete(props.id);
-    r?.({ ok, checked: checkedRef.current });
-    closeOverlay();
+    const checked = checkedRef.current;
+    // Let the dialog finish closing before the caller navigates again.
+    await closeOverlay();
+    r({ ok, checked });
   };
 
   // Dismissed by back gesture → counts as Cancel.

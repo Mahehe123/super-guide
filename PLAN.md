@@ -44,5 +44,5 @@ Kira's repo and app are **not touched**. Hiyo uses its own database name, so the
 ## Phase 6 — Ship
 - [x] 6.1 PWA: manifest, red icons (192/512/maskable), offline cache, update prompt. Verify: Lighthouse installable + works offline
 - [x] 6.2 Accessibility & polish pass: labels, 48px touch targets, focus, reduced motion, empty states
-- [ ] 6.3 Deploy: GitHub Actions workflow builds and publishes to Pages (you set Settings → Pages → Source: GitHub Actions once). **Ask before pushing**
+- [x] 6.3 Deploy: GitHub Actions workflow builds and publishes to Pages (you set Settings → Pages → Source: GitHub Actions once). **Ask before pushing**
 - [ ] 6.4 On the phone: open, auto-detect Kira data → import → install Hiyo

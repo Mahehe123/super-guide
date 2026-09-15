@@ -149,6 +149,7 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
           categoryId: e.categoryId,
           subId: e.subId,
           context: e.context,
+          claimable: e.claimStatus !== null,
           note: e.note,
           dayOfMonth: Math.min(Number(e.date.slice(8, 10)), 28),
           startMonth: e.date.slice(0, 7),

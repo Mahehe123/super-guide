@@ -296,6 +296,15 @@ export function RecurringForm({ id, from }: { id?: string; from?: Partial<Recurr
           </button>
         ))}
       </div>
+      {t.type === 'expense' && t.context === 'work' && (
+        <label class="switch-row">
+          <span>
+            Claimable
+            <small>Each month’s entry shows in Claims until settled</small>
+          </span>
+          <input type="checkbox" role="switch" checked={!!t.claimable} onChange={(e) => set({ claimable: e.currentTarget.checked })} />
+        </label>
+      )}
       <div class="three-col">
         <label class="field">
           <span>Day of month</span>

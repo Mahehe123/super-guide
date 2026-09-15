@@ -53,7 +53,7 @@ export function entryFromTemplate(t: Recurring, date: DateStr, currencies: Map<s
     categoryId: t.categoryId,
     subId: t.subId,
     context: t.context,
-    claimStatus: null,
+    claimStatus: t.type === 'expense' && t.context === 'work' && t.claimable ? 'pending' : null,
     claimSettledAt: null,
     claimSettlementId: null,
     tripId: null,
@@ -80,6 +80,18 @@ export async function runAutoRecurring(today: DateStr): Promise<number> {
     const def = settings?.value.defaultCurrency ?? 'MYR';
     await db.entries.bulkAdd(due.map((d) => entryFromTemplate(d.template, d.date, currencies, def)));
     return due.length;
+  });
+}
+
+/** One-time fix for bills imported before claimable existed: copy it from their latest entry. */
+export async function backfillClaimable(): Promise<number> {
+  return db.transaction('rw', db.recurring, db.entries, async () => {
+    const todo = (await db.recurring.toArray()).filter((t) => t.claimable === undefined);
+    for (const t of todo) {
+      const latest = (await db.entries.where('recurringId').equals(t.id).sortBy('date')).pop();
+      await db.recurring.update(t.id, { claimable: !!latest && latest.claimStatus !== null });
+    }
+    return todo.length;
   });
 }
 

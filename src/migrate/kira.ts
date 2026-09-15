@@ -319,6 +319,7 @@ export function suggestRecurring(
       // Kira auto-created fixed-length series; open-ended ones were only reminders.
       mode: months > 0 ? 'auto' : 'confirm',
       active: true,
+      claimable: e.claimStatus !== null,
       createdAt: e.createdAt,
     };
     out.push({
