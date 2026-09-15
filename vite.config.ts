@@ -45,6 +45,10 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: '/super-guide/index.html',
         cleanupOutdatedCaches: true,
+        // Take over as soon as a new version downloads, so a broken copy can always be replaced.
+        // The running page isn't reloaded; the new version loads on the next open.
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: { enabled: false },
     }),

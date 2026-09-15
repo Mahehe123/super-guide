@@ -34,23 +34,29 @@ async function catchUpRecurring() {
 }
 
 function setupUpdates() {
-  const update = registerSW({
-    onNeedRefresh() {
-      // Don't interrupt someone halfway through an entry; offer it when they're back on a tab.
-      const offer = () => toast('A new version of Hiyo is ready', { label: 'Update', run: () => update(true) }, { sticky: true });
-      if (nav.get().overlays.length === 0) offer();
-      else {
-        const t = setInterval(() => {
-          if (nav.get().overlays.length === 0) {
-            clearInterval(t);
-            offer();
-          }
-        }, 2000);
-      }
-    },
+  let hadController = !!navigator.serviceWorker?.controller;
+  registerSW({
+    immediate: true,
     onOfflineReady() {
       toast('Hiyo now works offline');
     },
+  });
+  // A new version took over in the background. Offer a reload, but never interrupt an open entry.
+  navigator.serviceWorker?.addEventListener('controllerchange', () => {
+    if (!hadController) {
+      hadController = true;
+      return;
+    }
+    const offer = () => toast('Hiyo was updated', { label: 'Reload', run: () => location.reload() }, { sticky: true });
+    if (nav.get().overlays.length === 0) offer();
+    else {
+      const t = setInterval(() => {
+        if (nav.get().overlays.length === 0) {
+          clearInterval(t);
+          offer();
+        }
+      }, 2000);
+    }
   });
 }
 
