@@ -458,7 +458,24 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
         ))}
         <label class="photo add">
           <Icon name="camera" />
-          <span>Add</span>
+          <span>Camera</span>
+          {/* capture opens the rear camera directly */}
+          <input
+            id="entry-receipt-camera"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            class="sr-only"
+            onChange={(e) => {
+              addPhotos(e.currentTarget.files);
+              e.currentTarget.value = '';
+            }}
+          />
+        </label>
+        <label class="photo add">
+          <Icon name="attach" />
+          <span>Attach</span>
+          {/* no capture: opens the gallery / files, e.g. screenshots */}
           <input
             id="entry-receipt"
             type="file"

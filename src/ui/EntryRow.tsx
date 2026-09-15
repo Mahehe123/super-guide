@@ -67,7 +67,7 @@ export function EntryRow({
               {t}
             </span>
           ))}
-          {e.receiptIds.length > 0 && <Icon name="camera" size={14} class="muted" />}
+          {e.receiptIds.length > 0 && <Icon name="attach" size={14} class="muted" />}
         </span>
       </span>
       <span class={e.type === 'income' ? 'amt pos' : 'amt'}>
