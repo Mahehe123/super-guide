@@ -31,7 +31,7 @@ export function OverlayHost({ overlays }: { overlays: Overlay[] }) {
           case 'trip':
             return <TripDetail key={i} id={p.id} />;
           case 'trip-edit':
-            return <TripForm key={i} id={p.id} />;
+            return <TripForm key={i} id={p.id} prefill={p.prefill} />;
           case 'recurring':
             return <RecurringSheet key={i} />;
           case 'recurring-edit':

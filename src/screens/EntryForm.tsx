@@ -11,6 +11,7 @@ import { fmtDay, toDateStr, today } from '../lib/dates';
 import { deleteEntries, saveEntry } from '../lib/entries';
 import { compressImage } from '../lib/files';
 import { newTemplate } from '../lib/recurring';
+import { findTripByName, looksLikeTrip, tripKindFor } from '../lib/trips';
 import { closeOverlay, openOverlay } from '../lib/nav';
 
 type Photo = { id?: string; blob: Blob; url: string };
@@ -44,6 +45,8 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [repeat, setRepeat] = useState(false);
+  /** Set when 'Create trip' was tapped for a tag; the new trip is picked up when it appears. */
+  const [pendingTrip, setPendingTrip] = useState<{ tag: string; since: number } | null>(null);
   const amountRef = useRef<HTMLInputElement>(null);
 
   /* Load entry when editing */
@@ -87,9 +90,28 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
   const subs = cat?.subs.filter((s) => !s.archived || s.id === subId) ?? [];
   const picks = useMemo(() => (all && !editing ? quickPicks(all, type, today(), 6) : []), [all, type, editing]);
 
-  /* Trip that covers the chosen date (auto-attached for new entries) */
+  /* Trip for this entry: chosen by hand, else a tag naming a trip, else a trip covering the date */
+  const tagList = tags.split(',').map((t) => t.trim()).filter(Boolean);
+  const matchedTrip = refs ? tagList.map((t) => findTripByName(refs.trips, t)).find(Boolean) : undefined;
+  const tripTag = refs ? tagList.find((t) => looksLikeTrip(t) && !findTripByName(refs.trips, t)) : undefined;
   const coveringTrip = refs?.trips.find((t) => t.start <= date && (t.end ?? t.start) >= date);
-  const effectiveTrip = tripId === undefined ? (coveringTrip?.id ?? null) : tripId;
+  const effectiveTrip = tripId === undefined ? (matchedTrip?.id ?? coveringTrip?.id ?? null) : tripId;
+
+  // After 'Create trip' from a tag: select the new trip and drop the tag it replaces.
+  useEffect(() => {
+    if (!pendingTrip || !refs) return;
+    const created = refs.trips.find((t) => t.createdAt >= pendingTrip.since);
+    if (!created) return;
+    setTripId(created.id);
+    setTags((cur) =>
+      cur
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t && t.toLowerCase() !== pendingTrip.tag.toLowerCase())
+        .join(', '),
+    );
+    setPendingTrip(null);
+  }, [refs?.trips, pendingTrip]);
 
   if (!refs || !loaded) return <Sheet title={editing ? 'Edit entry' : 'New entry'}>{null}</Sheet>;
 
@@ -134,7 +156,8 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
           claimSettlementId: claimStatus ? (original?.claimSettlementId ?? null) : null,
           tripId: effectiveTrip,
           note: note.trim(),
-          tags: [...new Set(tags.split(',').map((t) => t.trim()).filter(Boolean))],
+          // A tag that names the entry's trip is redundant once the trip is set.
+          tags: [...new Set(tagList)].filter((t) => !(effectiveTrip && matchedTrip?.id === effectiveTrip && t.toLowerCase() === matchedTrip.name.toLowerCase())),
           receiptIds: original?.receiptIds,
           recurringId: original?.recurringId ?? null,
         },
@@ -368,6 +391,37 @@ export function EntryForm({ id, type: initialType }: { id?: string; type?: Entry
         <span>Tags · separate with commas</span>
         <input id="entry-tags" value={tags} placeholder="Customer, Team lunch" onInput={(e) => setTags(e.currentTarget.value)} />
       </label>
+
+      {tripTag && (
+        <div class="card notice tag-trip">
+          <Icon name="flight" />
+          <span class="grow">
+            <b>“{tripTag}” looks like a trip</b>
+            <span class="small">Make it a trip to see its total and claims together.</span>
+          </span>
+          <button
+            class="btn tonal"
+            onClick={() => {
+              const dates = [date, ...(all ?? []).filter((x) => !x.tripId && x.tags.includes(tripTag)).map((x) => x.date)].sort();
+              setPendingTrip({ tag: tripTag, since: Date.now() });
+              openOverlay('trip-edit', {
+                prefill: {
+                  name: tripTag,
+                  kind: context === 'work' ? 'work' : tripKindFor(tripTag),
+                  start: dates[0],
+                  end: dates[dates.length - 1],
+                  tag: tripTag,
+                },
+              });
+            }}
+          >
+            Create trip
+          </button>
+        </div>
+      )}
+      {matchedTrip && tripId === undefined && (
+        <p class="small muted">Tag matches the trip “{matchedTrip.name}”, so this entry goes into it.</p>
+      )}
 
       {refs.trips.length > 0 && (
         <label class="field">

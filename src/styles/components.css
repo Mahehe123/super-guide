@@ -1942,3 +1942,20 @@ button.av.check {
 .link {
   min-height: 44px;
 }
+
+.tag-trip {
+  align-items: center;
+  background: var(--hi-c);
+  border-color: transparent;
+  color: var(--on-hi-c);
+}
+
+.tag-trip .grow {
+  display: grid;
+}
+
+.tag-trip .btn {
+  min-height: 40px;
+  background: var(--card);
+  flex: none;
+}

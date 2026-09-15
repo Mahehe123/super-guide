@@ -10,6 +10,7 @@ import type {
   TripKind,
 } from '../db/types';
 import { addMonths, claimCycle, daysBetween, monthLabel, monthOf, today } from '../lib/dates';
+import { tripKindFor } from '../lib/trips';
 
 /* ---------- Kira's shape (backup v2 / localStorage kira_data_v1) ---------- */
 
@@ -216,11 +217,7 @@ export function mapKira(data: KiraData, receipts: Record<string, string> = data.
 const TRIP_GAP_DAYS = 7;
 const YEAR_RE = /\b(19|20)\d{2}\b/;
 
-function tripKind(name: string): TripKind {
-  if (/work|business|customer/i.test(name)) return 'work';
-  if (YEAR_RE.test(name)) return 'holiday';
-  return 'other';
-}
+const tripKind = (name: string): TripKind => tripKindFor(name);
 
 function summarize(list: Entry[]) {
   const dates = list.map((e) => e.date).sort();

@@ -10,6 +10,7 @@ import { useAllEntries, useRefs } from '../lib/refs';
 import { fmtDay, today } from '../lib/dates';
 import { money } from '../lib/money';
 import { closeOverlay, openOverlay } from '../lib/nav';
+import { tagTripSuggestions } from '../lib/trips';
 
 const KIND_LABEL: Record<TripKind, string> = { work: 'Work', holiday: 'Holiday', other: 'Other' };
 
@@ -26,6 +27,7 @@ export function TripsSheet() {
     for (const e of all ?? []) if (e.tripId && e.type === 'expense') m.set(e.tripId, (m.get(e.tripId) ?? 0) + e.base);
     return m;
   }, [all]);
+  const suggestions = useMemo(() => (all && refs ? tagTripSuggestions(all, refs.trips) : []), [all, refs]);
 
   return (
     <Sheet
@@ -37,6 +39,33 @@ export function TripsSheet() {
         </button>
       }
     >
+      {suggestions.length > 0 && (
+        <>
+          <div class="label">Found in your tags</div>
+          <section class="card list">
+            {suggestions.map((s) => (
+              <div key={s.key} class="row">
+                <span class="av">
+                  <Icon name="flight" size={20} />
+                </span>
+                <span class="mid">
+                  <span class="t1">{s.name}</span>
+                  <span class="t2">
+                    {s.start === s.end ? fmtDay(s.start, { year: true }) : `${fmtDay(s.start)} – ${fmtDay(s.end, { year: true })}`} · {s.entryIds.length}{' '}
+                    {s.entryIds.length === 1 ? 'entry' : 'entries'}
+                  </span>
+                </span>
+                <button
+                  class="btn tonal"
+                  onClick={() => openOverlay('trip-edit', { prefill: { name: s.name, kind: s.kind, start: s.start, end: s.end, tag: s.tag } })}
+                >
+                  Create
+                </button>
+              </div>
+            ))}
+          </section>
+        </>
+      )}
       {refs && refs.trips.length === 0 && (
         <div class="empty">
           <Icon name="flight" />
@@ -200,13 +229,23 @@ export function TripDetail({ id }: { id: string }) {
   );
 }
 
-export function TripForm({ id }: { id?: string }) {
+export interface TripPrefill {
+  name: string;
+  kind: TripKind;
+  start: string;
+  end: string;
+  /** Tag the trip was suggested from; its entries move into the trip and lose the tag */
+  tag?: string;
+}
+
+export function TripForm({ id, prefill }: { id?: string; prefill?: TripPrefill }) {
   const refs = useRefs();
-  const [name, setName] = useState('');
-  const [kind, setKind] = useState<TripKind>('work');
-  const [start, setStart] = useState(today());
-  const [end, setEnd] = useState(today());
-  const [attach, setAttach] = useState(true);
+  const [name, setName] = useState(prefill?.name ?? '');
+  const [kind, setKind] = useState<TripKind>(prefill?.kind ?? 'work');
+  const [start, setStart] = useState(prefill?.start ?? today());
+  const [end, setEnd] = useState(prefill?.end ?? today());
+  const [attach, setAttach] = useState(!prefill?.tag);
+  const [moveTagged, setMoveTagged] = useState(!!prefill?.tag);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(!id);
 
@@ -228,6 +267,10 @@ export function TripForm({ id }: { id?: string }) {
     () => (allEntries ?? []).filter((x) => x.date >= start && x.date <= end && !x.tripId && (kind !== 'work' || x.context === 'work')).length,
     [allEntries, start, end, kind],
   );
+  const tagged = useMemo(
+    () => (prefill?.tag ? (allEntries ?? []).filter((x) => !x.tripId && x.date >= start && x.date <= end && x.tags.includes(prefill.tag!)) : []),
+    [allEntries, start, end, prefill?.tag],
+  );
 
   async function save() {
     if (!name.trim()) return setError('Give the trip a name.');
@@ -244,6 +287,17 @@ export function TripForm({ id }: { id?: string }) {
     await db.transaction('rw', db.trips, db.entries, async () => {
       const old = id ? await db.trips.get(id) : undefined;
       await db.trips.put({ ...trip, createdAt: old?.createdAt ?? trip.createdAt });
+      if (moveTagged && prefill?.tag) {
+        const tag = prefill.tag;
+        await db.entries
+          .where('date')
+          .between(start, end, true, true)
+          .filter((e) => !e.tripId && e.tags.includes(tag))
+          .modify((e) => {
+            e.tripId = trip.id;
+            e.tags = e.tags.filter((t) => t !== tag);
+          });
+      }
       if (attach)
         await db.entries
           .where('date')
@@ -280,9 +334,20 @@ export function TripForm({ id }: { id?: string }) {
           <input id="trip-end" type="date" value={end} min={start} onChange={(e) => setEnd(e.currentTarget.value)} />
         </label>
       </div>
+      {prefill?.tag && (
+        <label class="switch-row">
+          <span>
+            Move entries tagged “{prefill.tag}”
+            <small>
+              {tagged.length} {tagged.length === 1 ? 'entry' : 'entries'} in these dates · the tag is replaced by the trip
+            </small>
+          </span>
+          <input type="checkbox" role="switch" checked={moveTagged} onChange={(e) => setMoveTagged(e.currentTarget.checked)} />
+        </label>
+      )}
       <label class="switch-row">
         <span>
-          Add existing entries
+          {prefill?.tag ? 'Also add other entries in these dates' : 'Add existing entries'}
           <small>
             {candidates} {kind === 'work' ? 'work ' : ''}
             {candidates === 1 ? 'entry' : 'entries'} in these dates without a trip
